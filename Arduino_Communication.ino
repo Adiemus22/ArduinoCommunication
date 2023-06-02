@@ -60,7 +60,6 @@ void ClearBuffer()  // Clears Buffer
 
 void Distributor()    // Looks at the first sign of the incoming command (i.e. the buffer) and calls the corresponding function
 {
-  Serial.print(Buffer[0]);
   switch(Buffer[0])   // Buffer[0] = first sign of the command
   {
     case '?':
