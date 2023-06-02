@@ -1,5 +1,5 @@
 // DEFINITIONS
-#define def_BufferSize 128    // Alle Namen mit #define werden zur Laufzeit durch den Wert ersetzt!
+#define def_BufferSize 128    // All these variable names will be replaced bz these values
 #define def_BitRate 9600
 
 // VARIABLES
