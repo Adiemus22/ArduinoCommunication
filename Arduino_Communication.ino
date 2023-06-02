@@ -1,50 +1,50 @@
-#define def_BufferSize 128    // "#define" replaces the term (here "def_BufferSize") by a value (here: "128") while compiling
+// DEFINITIONS
+#define def_BufferSize 128    // Alle Namen mit #define werden zur Laufzeit durch den Wert ersetzt!
+#define def_BitRate 9600
 
-// global variables definition:
+// VARIABLES
 char Buffer[def_BufferSize];  // Buffer
-char helpBuffer[def_BufferSize];  // help buffer for arguments
-short positionOfEndSign;      // help sign for parsing
+char helpBuffer[def_BufferSize];
+short positionOfEndSign;
 char Sign;                    // Current read sign
-byte nIndex = 0;              // current position in Buffer
+byte nIndex;               // current position in Buffer
 char EndSign = '#';           // Final sign of an incoming string
 char ReturnEndSign = '*';     // Final return sign
 char emptyBufferSign = '%';   // Sign tellng to clean current buffer immediately
 
 
-
-void setup() {      // runs once at arduino start
-  Serial.begin(9600);   // begin to listen for possible connections
+// SETUP
+void setup()
+{
+  nIndex = 0;   // Set buffer reading position to 0
+  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(def_BitRate);  // Start connection
 }
 
-void loop() {                       // runs constantly
-while (Serial.available() > 0)      // Searching for incoming chars over and over again
-  {
-    Sign = Serial.read();           // read incoming char and store it in "Sign"
-    if (Sign == EndSign)            // if Sign == EndSign (defined in line 8), the command will end
-    {
-      Buffer[nIndex++] = EndSign;     // add EndSign to the buffer (why not!)
-      positionOfEndSign = nIndex;     // store position of the Endsign in "positionEndSign" to know the length of this char
-      Distributor();                  // call distributer function
-      nIndex = 0;                     // reset nIndex
-      Serial.print(ReturnEndSign);   // return ReturnEndSign to computer so the computer knows the Arduino is ready for the next command
 
+// LOOP looking for new signs from computer
+void loop()
+{
+  while (Serial.available() > 0)    // if there are new cigns from computer
+  {
+    Sign = Serial.read();         // read it
+    if (Sign == EndSign)          // if it is the endsign (signifying the end of the command from the computer)
+    {
+      Buffer[nIndex++] = EndSign; 
+      positionOfEndSign = nIndex; // Save position of endsign in the buffer
+      Distributor();              // Call the Distributor
     }
-    else if (Sign == emptyBufferSign) // if incoming char is an escape sign (in case something went wrong), just clear the buffer and reset nIndex. System resettet.
+    else if (Sign == emptyBufferSign)   // If it is the empty-buffer-sign, the current buffer will be cleared
     {
       ClearBuffer();
-      nIndex = 0;
     }
-    else                            // if the incoming char is something else, just add it to the buffer and increase nIndex.
+    else
     {
-      Buffer[nIndex] = Sign;
-      nIndex++;
-      
-      if (nIndex > def_BufferSize)  // if buffer is overfilled, return error and set nIndex to 0.
+      Buffer[nIndex] = Sign;          // If it is any other sign, save it to the buffer at the current position
+      nIndex++;                       // Increase buffer position
+      if (nIndex > def_BufferSize)    // If the command is longer than the buffer size, send an error message.
       {
-        Serial.print("E0001");
-        nIndex = 0;
         ClearBuffer();
-        Serial.print(ReturnEndSign);
       }
     }
   }
@@ -53,41 +53,61 @@ while (Serial.available() > 0)      // Searching for incoming chars over and ove
 
 void ClearBuffer()  // Clears Buffer
 {
-  nIndex = 0;
   for(int i = 0; i < def_BufferSize; i++) Buffer[i] = ' ';
+  Sign = ' ';
+  nIndex = -1;
 }
 
-void Distributor()  // The first char of an incoming command string defines the function to be called. The remaining chars are parameters that
-{                   // must be analysed and evaluated by the called function itself
-  switch(Buffer[0])   // cases for first char
+void Distributor()    // Looks at the first sign of the incoming command (i.e. the buffer) and calls the corresponding function
+{
+  Serial.print(Buffer[0]);
+  switch(Buffer[0])   // Buffer[0] = first sign of the command
   {
-    case '?':         // in case first char is '?' identify the arduino.
-    Identify();
-    break;
+    case '?':
+      Identify();
+      break;
 
-    /*
-     *  ----------------
-     *  insert code here
-     *  ----------------
-     *  
-     */
-    
-    default:          // in case it is anything else that has not been mentioned so far just do nothing
+    case 'd':
+      Delay();
+      break;
+
+    case 'e':
+      Example();
+      break;
+      
+    default:
+      Serial.print(Buffer[0]);
+      Serial.print(" undef.");   
     break;
   }
+
+  Serial.print(ReturnEndSign);   // Return endsign for 
+  ClearBuffer();
 }
 
-void Identify()   // Identification of Arduino (e.g. "nodeMCURR")
+
+void Identify()     // Sends the arduino identification string as reply
 {
-    Serial.print("nodeMCURR");
+    Serial.print("arduino"); 
 }
 
-void Wait()   // wait for a certain timespan (in ms)
+
+void Delay()
 {
-  for(int x = 1; x < positionOfEndSign; x++) helpBuffer[x-1] = Buffer[x];   // "helpbuffer" is a small buffer that contains the parameter
-                                                                            // (timespan in ms to wait)
-  helpBuffer[positionOfEndSign] = '\0';
-  delay(atof(helpBuffer));                                                  // "atof" turns a char array into a number. End char must be '\0'
+  for(int x = 1; x < positionOfEndSign; x++) helpBuffer[x-1] = Buffer[x];   // Shift Argument to new buffer
+  helpBuffer[positionOfEndSign] = '\0';      // Add end character to new buffer
+  delay(atoi(helpBuffer));                   // Transfer new buffer to int and delay
 }
 
-// by Dr René Riedel, 2022.
+
+void Example()  // turns on built-in LED if second char is '1', else turns it off
+{
+  if(Buffer[1] == '1')
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+}
