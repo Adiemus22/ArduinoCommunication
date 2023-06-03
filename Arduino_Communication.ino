@@ -1,24 +1,24 @@
 // DEFINITIONS
-#define def_BufferSize 128    // All these variable names will be replaced bz these values
-#define def_BitRate 9600
+#define BUFFER_SIZE 128    // All these variable names will be replaced by these values
+#define BIT_RATE 9600
 
 // VARIABLES
-char Buffer[def_BufferSize];  // Buffer
-char helpBuffer[def_BufferSize];
-short positionOfEndSign;
-char Sign;                    // Current read sign
-byte nIndex;               // current position in Buffer
-char EndSign = '#';           // Final sign of an incoming string
-char ReturnEndSign = '*';     // Final return sign
-char emptyBufferSign = '%';   // Sign tellng to clean current buffer immediately
+char Buffer[BUFFER_SIZE];       // Buffer for storage of received chars
+char helpBuffer[BUFFER_SIZE];   // Help buffer for argument handling
+short positionOfEndChar;        // Length of incoming command
+short bufferIndex;              // current writing position in Buffer
+char receivedChar;              // Incoming char
+char EndChar = '#';             // Final char of an incoming string
+char ReturnChar = '*';          // Final return char
+char resetChar = '%';           // Char telling to clean current buffer immediately
 
 
 // SETUP
 void setup()
 {
-  nIndex = 0;   // Set buffer reading position to 0
+  bufferIndex = 0;   // Set buffer reading position to 0
   pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(def_BitRate);  // Start connection
+  Serial.begin(BIT_RATE);  // Start connection
 }
 
 
@@ -27,81 +27,110 @@ void loop()
 {
   while (Serial.available() > 0)    // if there are new cigns from computer
   {
-    Sign = Serial.read();         // read it
-    if (Sign == EndSign)          // if it is the endsign (signifying the end of the command from the computer)
+    receivedChar = Serial.read();         // read it
+    receiveAndStoreChar(receivedChar);
+  }
+}
+
+
+// Received character handling
+void receiveAndStoreChar(char _receivedChar)
+{
+  // Skip invalid chars
+  if(_receivedChar == '\n') return;
+  if(_receivedChar == -1) return;
+  
+
+  // Look at received char
+  if(_receivedChar == EndChar)
+  {
+    // If EndChar, the full command has been received. Save Length of command and call Distributor function.
+    positionOfEndChar = bufferIndex;
+    Distributor();
+  }
+  else if(_receivedChar == resetChar)
+  {
+    // If reset char, reset buffer
+    ClearBuffer();
+  }
+  else
+  {
+    // If any other valid char, add to buffer and increment buffer index variable
+    Buffer[bufferIndex] = receivedChar;
+    bufferIndex++;
+
+    // If the command length exceeds the buffer size, send an error message and clear buffer.
+    if (bufferIndex >= BUFFER_SIZE)    
     {
-      Buffer[nIndex++] = EndSign; 
-      positionOfEndSign = nIndex; // Save position of endsign in the buffer
-      Distributor();              // Call the Distributor
-    }
-    else if (Sign == emptyBufferSign)   // If it is the empty-buffer-sign, the current buffer will be cleared
-    {
+      Serial.print("Cmd length error!");
       ClearBuffer();
-    }
-    else
-    {
-      Buffer[nIndex] = Sign;          // If it is any other sign, save it to the buffer at the current position
-      nIndex++;                       // Increase buffer position
-      if (nIndex > def_BufferSize)    // If the command is longer than the buffer size, send an error message.
-      {
-        ClearBuffer();
-      }
     }
   }
 }
 
 
-void ClearBuffer()  // Clears Buffer
+// Buffer clearage and buffer index reset
+void ClearBuffer()
 {
-  for(int i = 0; i < def_BufferSize; i++) Buffer[i] = ' ';
-  Sign = ' ';
-  nIndex = -1;
+  memset(Buffer, 0, sizeof(Buffer));
+  bufferIndex = 0;
 }
 
-void Distributor()    // Looks at the first sign of the incoming command (i.e. the buffer) and calls the corresponding function
+
+// Command Function caller
+void Distributor()    // Looks at the first char of the incoming command (i.e. the buffer) and calls the corresponding function
 {
+  bufferIndex = 0;
   switch(Buffer[0])   // Buffer[0] = first sign of the command
   {
-    case '?':
+    case '?':     // arduino self identification
       Identify();
       break;
 
-    case 'd':
+    case 'd':     // delay
       Delay();
       break;
 
-    case 'e':
+    case 'e':     // example function
       Example();
       break;
       
-    default:
+    default:      // error message if unknown command type
+      Serial.print("undef: '");
       Serial.print(Buffer[0]);
-      Serial.print(" undef.");   
+      Serial.print("'");
     break;
   }
 
-  Serial.print(ReturnEndSign);   // Return endsign for 
-  ClearBuffer();
+  Serial.print(ReturnChar);   // Return end char to tell that command has been worked off
+
+  ClearBuffer();  // Clears Buffer to be ready for next command
 }
 
 
-void Identify()     // Sends the arduino identification string as reply
+/* APPLICATION FUNCTIONS */
+/* --------------------- */
+
+// Sends the arduino identification string as reply
+void Identify()     
 {
     Serial.print("arduino"); 
 }
 
 
+// Executes system delay
 void Delay()
 {
-  for(int x = 1; x < positionOfEndSign; x++) helpBuffer[x-1] = Buffer[x];   // Shift Argument to new buffer
-  helpBuffer[positionOfEndSign] = '\0';      // Add end character to new buffer
-  delay(atoi(helpBuffer));                   // Transfer new buffer to int and delay
+  for(int x = 1; x < positionOfEndChar; x++) helpBuffer[x-1] = Buffer[x];   // Shift Argument to new buffer
+  helpBuffer[positionOfEndChar] = '\0';      // Add end character to new buffer
+  delay(atoi(helpBuffer));                   // Transfer new buffer to int and delays (in ms)
 }
 
 
-void Example()  // turns on built-in LED if second char is '1', else turns it off
+// turns on built-in LED if second char is '0', else turns it off
+void Example()
 {
-  if(Buffer[1] == '1')
+  if(Buffer[1] == '0')
   {
     digitalWrite(LED_BUILTIN, HIGH);
   }
